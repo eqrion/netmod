@@ -61,7 +61,11 @@ public:
 			_seek += 1;
 		}
 
-		*((int32_t*)_seek) |= (value & (0xFFFFFFFF >> (32 - bit_length))) << _bit_offset;
+		int32_t value_at_seek = 0;
+		memcpy(&value_at_seek, _seek, sizeof(int32_t));
+
+		int32_t value_to_write = value_at_seek | ((value & (0xFFFFFFFF >> (32 - bit_length))) << _bit_offset);
+		memcpy(_seek, value_to_write, sizeof(int32_t));
 
 		_bit_offset += bit_length;
 		_seek += _bit_offset / 8;
@@ -79,7 +83,11 @@ public:
 			_seek += 1;
 		}
 
-		*((uint32_t*)_seek) |= (value & (0xFFFFFFFF >> (32 - bit_length))) << _bit_offset;
+		uint32_t value_at_seek = 0;
+		memcpy(&value_at_seek, _seek, sizeof(uint32_t));
+
+		uint32_t value_to_write = value_at_seek | ((value & (0xFFFFFFFF >> (32 - bit_length))) << _bit_offset);
+		memcpy(_seek, &value_to_write, sizeof(uint32_t));
 
 		_bit_offset += bit_length;
 		_seek += _bit_offset / 8;
@@ -98,8 +106,10 @@ public:
 			_seek += 1;
 		}
 
-		int32_t value = *((int32_t*)_seek);
-		value = (value >> _bit_offset) & (0xFFFFFFFF >> (32 - bit_length));
+		int32_t value_at_seek;
+		memcpy(&value_at_seek, _seek, sizeof(int32_t));
+
+		value_at_seek = (value_at_seek >> _bit_offset) & (0xFFFFFFFF >> (32 - bit_length));
 
 		_bit_offset += bit_length;
 		_seek += _bit_offset / 8;
@@ -119,46 +129,25 @@ public:
 			_seek += 1;
 		}
 
-		uint32_t value = *((uint32_t*)_seek);
-		value = (value >> _bit_offset) & (0xFFFFFFFF >> (32 - bit_length));
+		uint32_t value_at_seek;
+		memcpy(&value_at_seek, _seek, sizeof(uint32_t));
+
+		value_at_seek = (value_at_seek >> _bit_offset) & (0xFFFFFFFF >> (32 - bit_length));
 
 		_bit_offset += bit_length;
 		_seek += _bit_offset / 8;
 		_bit_offset = _bit_offset % 8;
 			
-		return value;
+		return value_at_seek;
 	}
 
 	void write_bool(bool value)
 	{
-		if (_bit_offset > 31)
-		{
-			_bit_offset = 0;
-			_seek += 1;
-		}
-
-		*((uint32_t*)_seek) |= ((uint32_t)value & (0xFFFFFFFF >> (32 - 1))) << _bit_offset;
-
-		_bit_offset += 1;
-		_seek += _bit_offset / 8;
-		_bit_offset = _bit_offset % 8;
+		write_uint<1>(value ? 1 : 0);
 	}
 	bool read_bool()
-	{	
-		if (_bit_offset > 31)
-		{
-			_bit_offset = 0;
-			_seek += 1;
-		}
-
-		uint32_t value = *((uint32_t*)_seek);
-		value = (value >> _bit_offset) & (0xFFFFFFFF >> (32 - 1));
-
-		_bit_offset += 1;
-		_seek += _bit_offset / 8;
-		_bit_offset = _bit_offset % 8;
-			
-		return value != 0;
+	{
+		return read_uint<1>() == 1;
 	}
 
 	template<typename T>

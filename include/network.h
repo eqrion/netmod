@@ -3,13 +3,71 @@
 
 #include <stdint.h>
 #include <stdio.h>
+
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
 #pragma comment(lib, "Ws2_32.lib")
 
-void print_wsa_error()
+#if !defined(NETWORK_USE_IPV6)
+#define NETWORK_USE_IPV4
+#endif
+
+class network_timer
 {
-	printf("last error: %d\n", WSAGetLastError());
+public:
+	network_timer()
+	{
+		QueryPerformanceFrequency(&_frequency);
+	}
+
+	uint64_t get_milliseconds()
+	{
+		LARGE_INTEGER current_time;
+		QueryPerformanceCounter(&current_time);
+
+		uint64_t quotient = current_time.QuadPart / _frequency.QuadPart;
+		uint64_t remainder = current_time.QuadPart % _frequency.QuadPart;
+
+		return quotient * 1000 + (remainder * 1000) / _frequency.QuadPart;
+	}
+	uint64_t get_microseconds()
+	{
+		LARGE_INTEGER current_time;
+		QueryPerformanceCounter(&current_time);
+
+		uint64_t quotient = current_time.QuadPart / _frequency.QuadPart;
+		uint64_t remainder = current_time.QuadPart % _frequency.QuadPart;
+
+		return quotient * 1000000 + (remainder * 1000000) / _frequency.QuadPart;
+	}
+	uint64_t get_nanoseconds()
+	{
+		LARGE_INTEGER current_time;
+		QueryPerformanceCounter(&current_time);
+
+		uint64_t quotient = current_time.QuadPart / _frequency.QuadPart;
+		uint64_t remainder = current_time.QuadPart % _frequency.QuadPart;
+
+		return quotient * 1000000000 + (remainder * 1000000000) / _frequency.QuadPart;
+	}
+
+private:
+	LARGE_INTEGER _frequency;
+};
+
+static void print_wsa_error()
+{
+	auto last_error = WSAGetLastError();
+
+	if (last_error == 10047)
+	{
+		__debugbreak();
+	}
+
+	printf("last error: %d\n", last_error);
 }
 
 class ip_address
@@ -21,7 +79,11 @@ public:
 		struct addrinfo hints;
 		ZeroMemory(&hints, sizeof(hints));
 
+#if defined(NETWORK_USE_IPV6)
 		hints.ai_family = AF_INET6;
+#else
+		hints.ai_family = AF_INET;
+#endif
 		hints.ai_socktype = SOCK_DGRAM;
 		hints.ai_protocol = IPPROTO_UDP;
 		hints.ai_flags = 0;
@@ -30,22 +92,31 @@ public:
 
 		if (addr_result != 0)
 		{
-			printf("error resolving the host service ip_address.\n");
+			printf("error resolving the host service ip_address: %s.\n", gai_strerrorA(addr_result));
 			return false;
 		}
 
+#if defined(NETWORK_USE_IPV6)
 		wsa_ip_address = *(struct sockaddr_in6*)host_addr->ai_addr;
+#else
+		wsa_ip_address = *(struct sockaddr_in*)host_addr->ai_addr;
+#endif
 
 		freeaddrinfo(host_addr);
 
 		return true;
 	}
 
+#if defined(NETWORK_USE_IPV6)
 	sockaddr_in6 wsa_ip_address;
+#else
+	sockaddr_in wsa_ip_address;
+#endif
 };
 
 static bool operator==(const ip_address& a, const ip_address& b)
 {
+#if defined(NETWORK_USE_IPV6)
 	return a.wsa_ip_address.sin6_family == b.wsa_ip_address.sin6_family && a.wsa_ip_address.sin6_port == b.wsa_ip_address.sin6_port &&
 		a.wsa_ip_address.sin6_addr.u.Word[0] == b.wsa_ip_address.sin6_addr.u.Word[0] &&
 		a.wsa_ip_address.sin6_addr.u.Word[1] == b.wsa_ip_address.sin6_addr.u.Word[1] &&
@@ -55,6 +126,11 @@ static bool operator==(const ip_address& a, const ip_address& b)
 		a.wsa_ip_address.sin6_addr.u.Word[5] == b.wsa_ip_address.sin6_addr.u.Word[5] &&
 		a.wsa_ip_address.sin6_addr.u.Word[6] == b.wsa_ip_address.sin6_addr.u.Word[6] &&
 		a.wsa_ip_address.sin6_addr.u.Word[7] == b.wsa_ip_address.sin6_addr.u.Word[7];
+#else
+	return a.wsa_ip_address.sin_family == b.wsa_ip_address.sin_family &&
+		a.wsa_ip_address.sin_port == b.wsa_ip_address.sin_port &&
+		a.wsa_ip_address.sin_addr.S_un.S_addr == b.wsa_ip_address.sin_addr.S_un.S_addr;
+#endif
 }
 static bool operator!=(const ip_address& a, const ip_address& b)
 {
@@ -81,7 +157,11 @@ public:
 		struct addrinfo hints;
 		ZeroMemory(&hints, sizeof(hints));
 
+#if defined(NETWORK_USE_IPV6)
 		hints.ai_family = AF_INET6;
+#else
+		hints.ai_family = AF_INET;
+#endif
 		hints.ai_socktype = SOCK_DGRAM;
 		hints.ai_protocol = IPPROTO_UDP;
 		hints.ai_flags = AI_PASSIVE;
@@ -94,7 +174,11 @@ public:
 			return false;
 		}
 
+#if defined(NETWORK_USE_IPV6)
 		SOCKET sock = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+#else
+		SOCKET sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+#endif
 
 		if (sock == INVALID_SOCKET)
 		{
@@ -149,10 +233,10 @@ public:
 	bool send(const char* buffer, uint32_t length, ip_address to)
 	{
 #if _DEBUG
-		if (rand() % 3 == 0)
+		/*if (rand() % 3 == 0)
 		{
 			return false;
-		}
+		}*/
 #endif
 
 		if (sendto(
@@ -161,7 +245,7 @@ public:
 			length,
 			0,
 			(sockaddr*)&to.wsa_ip_address,
-			sizeof(struct sockaddr_in6)
+			sizeof(to.wsa_ip_address)
 			) != length)
 		{
 			print_wsa_error();
@@ -173,7 +257,7 @@ public:
 	}
 	bool try_receive(char* buffer, size_t buffer_capacity, size_t* amount_written, ip_address* from)
 	{
-		int from_len = sizeof(struct sockaddr_in6);
+		int from_len = sizeof(from->wsa_ip_address);
 
 		int result =
 			recvfrom(
