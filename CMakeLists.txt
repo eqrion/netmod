@@ -12,6 +12,9 @@ list(APPEND NETMOD_INCLUDES
 				)
 list(APPEND NETMOD_SRCS
 				"source/network_session.cpp"
+				"source/reliable_messenger.cpp"
+				"source/stream_messenger.cpp"
+				"source/connection.cpp"
 				)
 
 source_group("include\\" FILES ${NETMOD_INCLUDES})
@@ -30,3 +33,9 @@ target_link_libraries(chat_server PUBLIC netmod)
 
 add_executable(chat_client "source/chat_client.cpp")
 target_link_libraries(chat_client PUBLIC netmod)
+
+add_executable(stress_server "source/stress_server.cpp")
+target_link_libraries(stress_server PUBLIC netmod)
+
+add_executable(stress_client "source/stress_client.cpp")
+target_link_libraries(stress_client PUBLIC netmod)

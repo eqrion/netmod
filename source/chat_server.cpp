@@ -1,9 +1,6 @@
 #include "include/network_session.h"
 #include <iostream>
 
-#include <mutex>
-#include <condition_variable>
-
 class chat_server : public network_session_handler
 {
 public:

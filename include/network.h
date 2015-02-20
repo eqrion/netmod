@@ -148,10 +148,13 @@ public:
 
 	static const int recv_buf_size = 1024 * 256;
 	static const int send_buf_size = 1024 * 16;
+	static const int drop_rate = 4;
 
-	bool create(const char* port_number)
+	bool create(const char* port_number, bool should_drop_packets = false)
 	{
 		destroy();
+
+		drop_packets = should_drop_packets;
 
 		struct addrinfo* host_addr = nullptr;
 		struct addrinfo hints;
@@ -232,27 +235,24 @@ public:
 
 	bool send(const char* buffer, uint32_t length, ip_address to)
 	{
-#if _DEBUG
-		/*if (rand() % 3 == 0)
+		if (!drop_packets || (rand() % drop_rate) != 0)
 		{
-			return false;
-		}*/
-#endif
+			if (sendto(
+				wsa_socket,
+				buffer,
+				length,
+				0,
+				(sockaddr*)&to.wsa_ip_address,
+				sizeof(to.wsa_ip_address)
+				) != length)
+			{
+				print_wsa_error();
+				printf("an error occured in sending a udp_packet.\n");
 
-		if (sendto(
-			wsa_socket,
-			buffer,
-			length,
-			0,
-			(sockaddr*)&to.wsa_ip_address,
-			sizeof(to.wsa_ip_address)
-			) != length)
-		{
-			print_wsa_error();
-			printf("an error occured in sending a udp_packet.\n");
-
-			return false;
+				return false;
+			}
 		}
+
 		return true;
 	}
 	bool try_receive(char* buffer, size_t buffer_capacity, size_t* amount_written, ip_address* from)
@@ -279,7 +279,9 @@ public:
 			return true;
 		}
 	}
-	
+
+private:
+	bool drop_packets;
 	SOCKET wsa_socket;
 };
 

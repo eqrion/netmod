@@ -1,8 +1,6 @@
 #include "include/network_session.h"
 #include <iostream>
-
-#include <mutex>
-#include <condition_variable>
+#include <thread>
 
 class chat_client : public network_session_handler
 {
@@ -14,40 +12,19 @@ public:
 
 	virtual void on_message_received(bit_stream stream, const uuid& id) override
 	{
-		if (id == remote)
-		{
-			std::cout << stream.seek();
-		}
-		else
-		{
-			std::cout << "got a message not from the server..." << std::endl;
-		}
+		std::cout << stream.seek();
 	}
 
 	virtual void on_peer_joined(const uuid& id) override
 	{
-		if (remote.is_nil())
-		{
-			remote = id;
-			std::cout << "connected to [" << id.to_string() << "]" << std::endl;
-		}
-		else
-		{
-			std::cout << "peer joined that is not the server..." << std::endl;
-		}
+		remote = id;
+		std::cout << "connected to [" << id.to_string() << "]" << std::endl;
 	}
 
 	virtual void on_peer_disconnected(const uuid& id) override
 	{
-		if (remote == id)
-		{
-			memset(&remote, 0, sizeof(remote));
-			std::cout << "disconnected from [" << id.to_string() << "]" << std::endl;
-		}
-		else
-		{
-			std::cout << "peer disconnected that wasn't the server..." << std::endl;
-		}
+		memset(&remote, 0, sizeof(remote));
+		std::cout << "disconnected from [" << id.to_string() << "]" << std::endl;
 	}
 
 	virtual void query_result_handler(const ip_address& addr, bool can_connect, bool has_password, uint32_t connections, uint32_t max_connections) override
